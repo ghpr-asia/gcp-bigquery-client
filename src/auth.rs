@@ -5,6 +5,7 @@ use hyper_rustls::HttpsConnector;
 use std::sync::Arc;
 use yup_oauth2::authenticator::Authenticator;
 use yup_oauth2::ServiceAccountKey;
+use std::env;
 
 /// A service account authenticator.
 #[derive(Clone)]
@@ -45,6 +46,24 @@ impl ServiceAccountAuthenticator {
                 is_using_workload_identity: false,
             }),
         }
+    }
+
+    pub(crate) async fn from_authorized_user(
+        scopes: &[&str],
+    ) -> Result<ServiceAccountAuthenticator, BQError> {
+        let secret = yup_oauth2::read_authorized_user_secret(
+            env::var("GOOGLE_APPLICATION_CREDENTIALS").unwrap(),
+        )
+        .await?;
+    
+        let auth_flow = yup_oauth2::AuthorizedUserAuthenticator::builder(secret);
+        let auth = auth_flow.build().await?;
+    
+        Ok(ServiceAccountAuthenticator {
+            auth: Some(Arc::new(auth)),
+            scopes: scopes.iter().map(|scope| scope.to_string()).collect(),
+            is_using_workload_identity: false,
+        })
     }
 
     pub(crate) async fn with_workload_identity(scopes: &[&str]) -> Result<ServiceAccountAuthenticator, BQError> {

@@ -104,6 +104,27 @@ impl Client {
         })
     }
 
+    pub async fn from_authorized_user(readonly: bool) -> Result<Self, BQError> {
+        let scopes = if readonly {
+            ["https://www.googleapis.com/auth/bigquery.readonly"]
+        } else {
+            ["https://www.googleapis.com/auth/bigquery"]
+        };
+        
+        let auth = ServiceAccountAuthenticator::from_authorized_user(&scopes).await?;
+
+        let client = reqwest::Client::new();
+        Ok(Self {
+            dataset_api: DatasetApi::new(client.clone(), auth.clone()),
+            table_api: TableApi::new(client.clone(), auth.clone()),
+            job_api: JobApi::new(client.clone(), auth.clone()),
+            tabledata_api: TableDataApi::new(client.clone(), auth.clone()),
+            routine_api: RoutineApi::new(client.clone(), auth.clone()),
+            model_api: ModelApi::new(client.clone(), auth.clone()),
+            project_api: ProjectApi::new(client, auth),
+        })
+    }
+
     pub async fn with_workload_identity(readonly: bool) -> Result<Self, BQError> {
         let scopes = if readonly {
             ["https://www.googleapis.com/auth/bigquery.readonly"]
