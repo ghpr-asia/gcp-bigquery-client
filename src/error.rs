@@ -12,7 +12,7 @@ pub enum BQError {
     InvalidServiceAccountAuthenticator(std::io::Error),
 
     #[error("Authentication error (error: {0})")]
-    AuthError(#[from] yup_oauth2::error::AuthError),
+    AuthError(String),
 
     #[error("Authentication error (error: {0})")]
     YupAuthError(#[from] yup_oauth2::Error),

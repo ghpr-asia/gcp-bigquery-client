@@ -110,8 +110,13 @@ impl Client {
         } else {
             ["https://www.googleapis.com/auth/bigquery"]
         };
-        
-        let auth = ServiceAccountAuthenticator::from_authorized_user(&scopes).await?;
+
+        let auth = ServiceAccountAuthenticator::from_authorized_user(
+            &env::var("GOOGLE_APPLICATION_CREDENTIALS").map_err(
+                |_| BQError::AuthError("GOOGLE_APPLICATION_CREDENTIALS is missing".to_string())
+            )?,
+            &scopes
+        ).await?;
 
         let client = reqwest::Client::new();
         Ok(Self {
@@ -143,6 +148,28 @@ impl Client {
             routine_api: RoutineApi::new(client.clone(), sa_auth.clone()),
             model_api: ModelApi::new(client.clone(), sa_auth.clone()),
             project_api: ProjectApi::new(client, sa_auth),
+        })
+    }
+
+    //  implements ADC strategy
+    pub async fn auto_authenticate(readonly : bool) -> Result<Self, BQError> {
+        let scopes = if readonly {
+            ["https://www.googleapis.com/auth/bigquery.readonly"]
+        } else {
+            ["https://www.googleapis.com/auth/bigquery"]
+        };
+
+        let auth = ServiceAccountAuthenticator::auto_authenticate(&scopes).await?;
+
+        let client = reqwest::Client::new();
+        Ok(Self {
+            dataset_api: DatasetApi::new(client.clone(), auth.clone()),
+            table_api: TableApi::new(client.clone(), auth.clone()),
+            job_api: JobApi::new(client.clone(), auth.clone()),
+            tabledata_api: TableDataApi::new(client.clone(), auth.clone()),
+            routine_api: RoutineApi::new(client.clone(), auth.clone()),
+            model_api: ModelApi::new(client.clone(), auth.clone()),
+            project_api: ProjectApi::new(client, auth),
         })
     }
 

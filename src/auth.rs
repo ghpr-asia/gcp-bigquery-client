@@ -49,12 +49,10 @@ impl ServiceAccountAuthenticator {
     }
 
     pub(crate) async fn from_authorized_user(
+        path: &str,
         scopes: &[&str],
     ) -> Result<ServiceAccountAuthenticator, BQError> {
-        let secret = yup_oauth2::read_authorized_user_secret(
-            env::var("GOOGLE_APPLICATION_CREDENTIALS").unwrap(),
-        )
-        .await?;
+        let secret = yup_oauth2::read_authorized_user_secret(path).await?;
     
         let auth_flow = yup_oauth2::AuthorizedUserAuthenticator::builder(secret);
         let auth = auth_flow.build().await?;
@@ -72,6 +70,41 @@ impl ServiceAccountAuthenticator {
             scopes: scopes.iter().map(|scope| scope.to_string()).collect(),
             is_using_workload_identity: true,
         })
+    }
+
+    pub(crate) async fn auto_authenticate(scopes: &[&str]) -> Result<ServiceAccountAuthenticator, BQError> {
+        //  implements ADC strategy
+
+        if let Ok(key_file) = env::var("GOOGLE_APPLICATION_CREDENTIALS") {
+            if let Ok(_secret) = yup_oauth2::read_authorized_user_secret(&key_file).await {
+                return ServiceAccountAuthenticator::from_authorized_user(&key_file, scopes).await;
+            }
+            if let Ok(secret) = yup_oauth2::read_service_account_key(&key_file).await {
+                return ServiceAccountAuthenticator::from_service_account_key(secret, scopes).await;
+            }
+
+            dbg!("Unsupported key format under GOOGLE_APPLICATION_CREDENTIALS! Moving on.");
+        }
+
+
+        if let Ok(_token) = get_access_token_with_workload_identity().await {
+            return ServiceAccountAuthenticator::with_workload_identity(scopes).await;
+        }
+
+        //  well known key locations
+        #[cfg(target_os = "linux")]
+        let config_location = "~/.config/gcloud/application_default_credentials.json";
+        #[cfg(target_os = "windows")]
+        let config_location = "%appdata%/gcloud/application_default_credentials.json";
+
+        if let Ok(_secret) = yup_oauth2::read_authorized_user_secret(config_location).await {
+            return ServiceAccountAuthenticator::from_authorized_user(config_location, scopes).await;
+        }
+        if let Ok(secret) = yup_oauth2::read_service_account_key(config_location).await {
+            return ServiceAccountAuthenticator::from_service_account_key(secret, scopes).await;
+        }
+
+        Err(BQError::AuthError("Authentication failed. Auto auth exhausted all options.".to_owned()))
     }
 }
 
