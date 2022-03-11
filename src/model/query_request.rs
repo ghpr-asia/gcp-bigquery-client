@@ -1,6 +1,8 @@
 use crate::model::connection_property::ConnectionProperty;
 use crate::model::dataset_reference::DatasetReference;
 use crate::model::query_parameter::QueryParameter;
+use crate::model::query_parameter_type::QueryParameterType;
+use crate::model::query_parameter_value::QueryParameterValue;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -73,5 +75,28 @@ impl QueryRequest {
             use_legacy_sql: false, // force standard SQL by default
             use_query_cache: None,
         }
+    }
+
+    pub fn add_parameter(&mut self, name : &str, value : String) {
+        if self.query_parameters.is_none() {
+            self.query_parameters = Some(Vec::new());
+        }
+
+        self.parameter_mode = Some("NAMED".to_string());
+
+        let vec = self.query_parameters.as_mut().unwrap();
+        vec.push(
+            QueryParameter {
+                name: Some(name.to_string()),
+                parameter_type: Some(QueryParameterType {
+                    r#type: "STRING".to_string(),
+                    ..Default::default()
+                }),
+                parameter_value: Some(QueryParameterValue {
+                    value: Some(value),
+                    ..Default::default()
+                }),
+            }
+        );
     }
 }
